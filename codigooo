@@ -1,0 +1,243 @@
+package com.example.bomber;
+
+import com.example.bomber.Aviones.Bombardero_1;
+
+import android.content.Context;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Matrix;
+import android.graphics.Paint;
+import android.graphics.Rect;
+import android.graphics.Typeface;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
+
+public class ViewLoopPrincipalVuelo extends SurfaceView implements Runnable{
+  //******NECESARIOS PARA THREAD
+	Thread renderThread=null;
+	SurfaceHolder holder;
+	volatile boolean running=false;
+	//****************************
+	Context c;
+	
+	//letras
+	Paint paint=new Paint();
+	Typeface font;
+	
+	//imps
+	private boolean CorrioPrimeraVez=false;
+	
+	Matrix mat = new Matrix();
+	//************
+	//Parametros Juego
+	private Bombardero_1 avion=new Bombardero_1();
+	
+	//parametros mapa
+	Mapa1 mapa;
+	private float DesplazamientoX=0;
+	private float DesplazamientoY=0;
+	Rect recta=new Rect();
+	
+	//params mouse
+	private float diferenciaClickX,diferenciaClickY;
+	private double AnguloIndicado;
+	
+	//misc
+	static int frame=0;
+	//procesos
+	static Proceso avion2=new Proceso();
+	static Proceso MovimientoContinuoAvionPrincipal=new Proceso();
+	static Proceso per_ImagenesUI=new Proceso();
+	static Proceso lap_Soltarbomba=new Proceso();
+	
+	static Proceso lap_botonPresionado_SoltarBomba=new Proceso();
+	
+	static Proceso lap_GiroAvionPrincipal=new Proceso();
+	
+	public ViewLoopPrincipalVuelo(Context context) {
+		//******NECESARIOS PARA THREAD
+		super(context);
+		holder=getHolder();
+		//****************************
+		c=context;
+		font=Typeface.createFromAsset(context.getAssets(), "4starfac.ttf");
+		iniciar();
+	}
+	public void iniciar(){
+		//imagenAvion=copiarBitmapBlancoAlpha(getImagen(avion.getDireccionImagen()));
+		paint.setColor(Color.BLACK);
+		paint.setTypeface(font);
+		paint.setTextSize(15);
+		paint.setTextAlign(Paint.Align.LEFT);
+		
+	}
+
+	
+	public void resume(){
+		running=true;
+		renderThread=new Thread(this);
+		renderThread.start();
+	}
+
+	@Override
+	public void run() {
+		while(running){
+			if(!holder.getSurface().isValid())
+				continue;
+			Canvas canvas=holder.lockCanvas();
+			//comandos aca
+			//corre primera vez===============================================================================================
+			if (!CorrioPrimeraVez){
+				Graficos g=new Graficos(canvas);
+
+				Graficos.canvasJuego=canvas;
+				/*
+				ResolucionX=canvas.getWidth();
+				ResolucionY=canvas.getHeight();
+				CentroPantallaX=ResolucionX/2;
+				CentroPantallaY=ResolucionY/2;
+				*/
+				mapa=new Mapa1("middle-earth-map.png",canvas,c);
+
+				DataUI.avionPrincipal=avion;
+				DataUI.mapaPrincipal=mapa;
+				//****** procesos permanentes
+				MovimientoContinuoAvionPrincipal.setFrameInicialEIniciar(0,Acciones.NombreAccion.MovimientoPermanenteAvion,0);
+				per_ImagenesUI.setFrameInicialEIniciar(0, Acciones.NombreAccion.CreacionImagenesUI, 0);
+				lap_GiroAvionPrincipal.setFrameInicialEIniciar(frame, Acciones.NombreAccion.GirarAvionPrincipal, 0);
+				
+			}
+			//================================================================================================================
+			CorrioPrimeraVez=true;
+			frame++;
+			
+			try {
+				Thread.sleep(10);
+			} catch (InterruptedException e) {
+				
+				e.printStackTrace();
+			}
+						
+			//texto
+			canvas.drawText("x: "+ListenerVuelo.cX+", y: "+ListenerVuelo.cY+ " DifX: "+diferenciaClickX+", DifY: "+diferenciaClickY, 20, 20, paint);
+			canvas.drawText("angulo : "+avion.getAngulo() + " ,angulo Ind;"+ AnguloIndicado, 20, 40, paint);			
+			canvas.drawText("desx : "+DesplazamientoX+" ,desY: "+DesplazamientoY, 20, 60, paint);	
+			canvas.drawText("XAvion : "+avion.getX()+" ,YAvion: "+avion.getY(), 20, 80, paint);
+			canvas.drawText("frame : "+frame, 20, 100, paint);
+			//test procesos
+			
+			//evento
+		
+			//para q se lleve a cabo la accion
+			
+			if(avion2.acaba()){
+				avion2.setFrameInicialEIniciar(frame,Acciones.NombreAccion.MovimientoADerecha,30);
+			}
+			/*
+			if(frame==50)
+				MovimientoContinuoAvionPrincipal.terminar();
+				*/
+			//******************************************************
+
+			//******escalando procesos
+			MovimientoContinuoAvionPrincipal.escalar(1);//va antes xq llena la pantalla de graficos y tapa too
+			lap_Soltarbomba.escalar(1);
+			per_ImagenesUI.escalar(1);
+			lap_botonPresionado_SoltarBomba.escalar(1);
+			//avion2.escalar(1);
+			lap_GiroAvionPrincipal.escalar(1);
+			//fin d comandos
+			holder.unlockCanvasAndPost(canvas);
+		}
+	}
+	
+	public void pause(){
+		running=false;
+		CorrioPrimeraVez=true;
+		while(true){
+				try {
+					renderThread.join();
+				} catch (InterruptedException e) {
+				}
+		}
+	}
+
+
+	
+	public static void girarAvion(double angulo,boolean derecha){
+
+		
+
+	}
+	
+	public static void eventoClickDown(float x , float y ){
+		int id=getBotondeTouch(x,y);
+		switch(id){		
+		case 0:
+		{
+			//girarAvionPrincipal(x,y);
+			
+			
+			avion2.setFrameInicialEIniciar(frame,Acciones.NombreAccion.MovimientoADerecha,30);
+			//lap_Soltarbomba.setFrameInicialEIniciar(frame, Acciones.NombreAccion.SoltarBomba, 20);
+			DataUI.clickBoton0X=ListenerVuelo.cX;
+			DataUI.clickBoton0Y=ListenerVuelo.cY;
+
+			
+			break;
+		}
+		case 1:
+		{
+			
+			//lap_botonPresionado_SoltarBomba.setFrameInicialEIniciar(frame, Acciones.NombreAccion.Boton_SoltarBomba_Presionado, 5);
+			break;
+		}
+		}
+	}
+	
+	public static void eventoClickUp(float x , float y ){
+		int id=getBotondeTouch(x,y);
+		switch(id){		
+		case 0:
+		{
+			//lap_Soltarbomba.setFrameInicialEIniciar(frame, Acciones.NombreAccion.SoltarBomba, 20);
+			DataUI.clickBoton0X=ListenerVuelo.cX;
+			DataUI.clickBoton0Y=ListenerVuelo.cY;
+			break;
+		}
+		case 1:
+		{
+			lap_botonPresionado_SoltarBomba.setFrameInicialEIniciar(frame, Acciones.NombreAccion.Boton_SoltarBomba_Presionado, 0);
+			break;
+		}
+		}
+	}
+	
+	public static void eventoDrag(float x , float y ){
+		int id=getBotondeTouch(x,y);
+		switch(id){		
+		case 0:
+		{
+			
+			//avion2.setFrameInicialEIniciar(frame,Acciones.NombreAccion.MovimientoADerecha,30);
+			//lap_Soltarbomba.setFrameInicialEIniciar(frame, Acciones.NombreAccion.SoltarBomba, 20);
+			DataUI.clickBoton0X=ListenerVuelo.cX;
+			DataUI.clickBoton0Y=ListenerVuelo.cY;
+			break;
+		}
+		case 1:
+		{
+			
+			lap_botonPresionado_SoltarBomba.setFrameInicialEIniciar(frame, Acciones.NombreAccion.Boton_SoltarBomba_Presionado, 0);
+			break;
+		}
+		}
+	}
+	
+	public static int getBotondeTouch(float x , float y){
+		if (DatabaseBotones.Boton_SoltarBomba.contienePunto(x,y))
+			return DatabaseBotones.Boton_SoltarBomba.ID;
+		else		
+			return DatabaseBotones.BotonESPECIAL_Pantalla.ID;
+	}
+}
